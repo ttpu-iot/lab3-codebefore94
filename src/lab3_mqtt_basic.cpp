@@ -10,10 +10,10 @@ const char* ssid = "Wokwi-GUEST";
 const char* password = "";
 
 // MQTT Broker settings
-const char* mqtt_broker = "<test.mosquitto.org>";  // Free public MQTT broker
+const char* mqtt_broker = "mqtt.iotserver.uz";  // Free public MQTT broker
 const int mqtt_port = 1883;
-const char* mqtt_username = "<username>";  // username given in the telegram group
-const char* mqtt_password = "<password>";  // password given in the telegram group
+const char* mqtt_username = "userTTPU";  // username given in the telegram group
+const char* mqtt_password = "mqttpass";  // password given in the telegram group
 
 const char* mqtt_topic_pub = "ttpu/iot/test/out";   // Topic to publish
 const char* mqtt_topic_sub = "ttpu/iot/test/in";    // Topic to subscribe
@@ -87,7 +87,8 @@ void loop() {
     
     if (mqtt_client.publish(mqtt_topic_pub, message.c_str())) {
       Serial.println("Message published successfully!");
-    } else {
+    } 
+    else {
       Serial.println("Failed to publish message!");
     }
     Serial.println("---");
@@ -98,7 +99,8 @@ void loop() {
  * FUNCTIONS
  */
 // Function to connect to WiFi
-void connectWiFi() {
+void connectWiFi() 
+{
   Serial.println("\nConnecting to WiFi...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
@@ -114,7 +116,8 @@ void connectWiFi() {
 }
 
 // Callback function for received MQTT messages
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
+void mqttCallback(char* topic, byte* payload, unsigned int length) 
+{
   Serial.print("Message received on topic: ");
   Serial.println(topic);
   
@@ -130,7 +133,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 // Function to connect/reconnect to MQTT broker
-void connectMQTT() {
+void connectMQTT() 
+{
   while (!mqtt_client.connected()) {
     Serial.println("Connecting to MQTT broker...");
     
@@ -143,7 +147,8 @@ void connectMQTT() {
       mqtt_client.subscribe(mqtt_topic_sub);
       Serial.print("Subscribed to topic: ");
       Serial.println(mqtt_topic_sub);
-    } else {
+    } 
+    else {
       Serial.print("MQTT connection failed, rc=");
       Serial.println(mqtt_client.state());
       Serial.println("Retrying in 5 seconds...");
