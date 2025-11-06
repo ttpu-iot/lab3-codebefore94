@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Device Live Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <main class="container">
+    <header class="page-header">
+      <h1>Device Live Dashboard</h1>
+      <p class="subtitle">Incoming data from {{ mqtt_broker }}</p>
+    </header>
+    <section class="grid">
+      <article class="card">
+        <div class="card-header">
+          <h2>Light Sensor</h2>
+          <span class="topic">Topic: {{ topics.light }}</span>
+        </div>
+        <div class="light-reading">
+          <span id="lightValue" class="value">--</span>
+          <span class="unit">/ 4096</span>
+        </div>
+        <div class="progress">
+          <div id="lightProgress" class="progress-bar"></div>
+        </div>
+        <p class="small" id="lightTimestamp">Awaiting data…</p>
+      </article>
+      <article class="card">
+        <div class="card-header">
+          <h2>Button Events</h2>
+          <span class="topic">Topic: {{ topics.button }}</span>
+        </div>
+        <ul id="eventList" class="events">
+          <li class="placeholder">No events yet.</li>
+        </ul>
+      </article>
+    </section>
+  </main>
+  <footer class="page-footer">
+    <div id="connectionStatus" class="status status--disconnected">Connecting…</div>
+    <span class="hint">Dashboard refreshes automatically every 2 seconds.</span>
+  </footer>
+  <script>
+    const maxLight = 4096;
+    const stateEndpoint = '{{ url_for("get_state") }}';
+    let pollTimer = null;
+    const pollInterval = 2000;
+
+    function formatRelative(ts) {
+      if (!ts) {
+        return 'Awaiting data…';
+      }
+      const date = new Date(ts * 1000);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffSec = Math.round(diffMs / 1000);
+      if (diffSec < 5) {
+        return 'Just now';
+      }
+      if (diffSec < 60) {
+        return `${diffSec} seconds ago`;
+      }
+      const diffMin = Math.round(diffSec / 60);
+      if (diffMin < 60) {
+        return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
+      }
+      return date.toLocaleString();
+    }
+
+    function setConnectionStatus(connected, lastMessageTs) {
+      const el = document.getElementById('connectionStatus');
+      if (connected) {
+        el.textContent = 'Connected to MQTT broker';
+        el.classList.remove('status--disconnected');
+        el.classList.add('status--connected');
+      } else {
+        el.textContent = 'Disconnected from MQTT broker';
+        el.classList.remove('status--connected');
+        el.classList.add('status--disconnected');
+      }
+      if (lastMessageTs) {
+        el.textContent += ` • Last message ${formatRelative(lastMessageTs)}`;
+      }
+    }
+
+    function renderSensor(sensor) {
+      const valueEl = document.getElementById('lightValue');
+      const progressEl = document.getElementById('lightProgress');
+      const timestampEl = document.getElementById('lightTimestamp');
+      if (!sensor) {
+        valueEl.textContent = '--';
+        progressEl.style.width = '0%';
+        timestampEl.textContent = 'Awaiting data…';
+        return;
+      }
+      const light = sensor.light ?? 0;
+      valueEl.textContent = light;
+      const percentage = Math.max(0, Math.min(100, Math.round((light / maxLight) * 100)));
+      progressEl.style.width = `${percentage}%`;
+      progressEl.dataset.value = percentage;
+      timestampEl.textContent = `Updated ${formatRelative(sensor.timestamp)}`;
+    }
+
+    function renderEvents(events) {
+      const list = document.getElementById('eventList');
+      list.innerHTML = '';
+      if (!events || events.length === 0) {
+        const li = document.createElement('li');
+        li.className = 'placeholder';
+        li.textContent = 'No events yet.';
+        list.appendChild(li);
+        return;
+      }
+      events.forEach((evt) => {
+        const li = document.createElement('li');
+        li.className = `event event--${evt.event.toLowerCase()}`;
+        const name = document.createElement('span');
+        name.className = 'event-label';
+        name.textContent = evt.event;
+        const time = document.createElement('time');
+        time.dateTime = evt.timestamp_iso ?? '';
+        time.textContent = formatRelative(evt.timestamp);
+        li.appendChild(name);
+        li.appendChild(time);
+        list.appendChild(li);
+      });
+    }
+
+    async function fetchState() {
+      try {
+        const response = await fetch(stateEndpoint, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        renderSensor(data.sensor);
+        renderEvents(data.events);
+        setConnectionStatus(data.connection.connected, data.connection.last_message_at);
+        scheduleNext();
+      } catch (error) {
+        console.error('Failed to fetch state', error);
+        setConnectionStatus(false, null);
+        scheduleNext(4000);
+      }
+    }
+
+    function scheduleNext(delay = pollInterval) {
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+      }
+      pollTimer = setTimeout(fetchState, delay);
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+        }
+      } else {
+        fetchState();
+      }
+    });
+
+    fetchState();
+  </script>
+</body>
+</html>
