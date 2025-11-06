@@ -74,14 +74,14 @@ void loop()
 {
     // Check WiFi connection
     if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi disconnected! Reconnecting...");
-    connectWiFi();
+      Serial.println("WiFi disconnected! Reconnecting...");
+      connectWiFi();
     }
 
     // Check MQTT connection
     if (!mqtt_client.connected()) {
-    Serial.println("MQTT disconnected! Reconnecting...");
-    connectMQTT();
+      Serial.println("MQTT disconnected! Reconnecting...");
+      connectMQTT();
     }
 
     // Process incoming MQTT messages
@@ -93,6 +93,7 @@ void loop()
 
     unsigned long currentTime = millis();
     if (currentTime - lastSensorReadTime >= sensorReadInterval) {
+      
         lastSensorReadTime = currentTime;
 
         // read sensor
@@ -119,8 +120,15 @@ void loop()
     // Detect Button Events
     static int lastButtonState = LOW;
     int currentButtonState = digitalRead(buttonPin);
-    if (currentButtonState != lastButtonState) {
+
+    static unsigned long lastDebounceTime = 0;
+    currentTime = millis();
+
+    if (currentButtonState != lastButtonState && (currentTime - lastDebounceTime) > 100) {
+
         lastButtonState = currentButtonState;
+
+        lastDebounceTime = currentTime;
 
         String buttonStr = "";
         
@@ -147,9 +155,6 @@ void loop()
         else {
             Serial.println("Failed to publish button event to MQTT");
         }
-
-        // Debounce delay
-        delay(100);
     }
 }
 
