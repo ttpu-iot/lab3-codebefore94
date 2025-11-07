@@ -36,17 +36,109 @@
           <li class="placeholder">No events yet.</li>
         </ul>
       </article>
+      <article class="card">
+        <div class="card-header">
+          <h2>LED Control</h2>
+          <div class="topic topic--block">
+            <strong>Topics</strong>
+            <ul class="topic-list">
+              <li><span class="topic-dot topic-dot--red"></span>Red: {{ topics.leds.red }}</li>
+              <li><span class="topic-dot topic-dot--green"></span>Green: {{ topics.leds.green }}</li>
+              <li><span class="topic-dot topic-dot--blue"></span>Blue: {{ topics.leds.blue }}</li>
+              <li><span class="topic-dot topic-dot--yellow"></span>Yellow: {{ topics.leds.yellow }}</li>
+            </ul>
+          </div>
+        </div>
+        <div class="led-grid" id="ledGrid">
+          <button type="button" class="led-toggle" data-led-color="red" data-state="OFF">
+            <span class="led-toggle__indicator"></span>
+            <span class="led-toggle__label">Red LED</span>
+            <span class="led-toggle__state">OFF</span>
+          </button>
+          <button type="button" class="led-toggle" data-led-color="green" data-state="OFF">
+            <span class="led-toggle__indicator"></span>
+            <span class="led-toggle__label">Green LED</span>
+            <span class="led-toggle__state">OFF</span>
+          </button>
+          <button type="button" class="led-toggle" data-led-color="blue" data-state="OFF">
+            <span class="led-toggle__indicator"></span>
+            <span class="led-toggle__label">Blue LED</span>
+            <span class="led-toggle__state">OFF</span>
+          </button>
+          <button type="button" class="led-toggle" data-led-color="yellow" data-state="OFF">
+            <span class="led-toggle__indicator"></span>
+            <span class="led-toggle__label">Yellow LED</span>
+            <span class="led-toggle__state">OFF</span>
+          </button>
+        </div>
+        <p class="small status-message" id="ledStatus" role="status" aria-live="polite">All LEDs off.</p>
+      </article>
+      <article class="card">
+        <div class="card-header">
+          <h2>LCD Display</h2>
+          <span class="topic">Topic: {{ topics.display }}</span>
+        </div>
+        <form id="lcdForm" class="lcd-form" autocomplete="off">
+          <label for="lcdText" class="lcd-form__label">Message (max 16 characters)</label>
+          <div class="lcd-input-row">
+            <input id="lcdText" name="lcdText" type="text" maxlength="16" placeholder="Hello IoT Lab!" required>
+            <button type="submit" class="btn btn--primary">Send</button>
+          </div>
+        </form>
+        <div class="lcd-current">
+          <h3 class="lcd-current__title">Last message</h3>
+          <p id="lcdLastMessage" class="lcd-current__text">None yet.</p>
+          <p id="lcdLastTimestamp" class="small">No message sent.</p>
+        </div>
+        <p class="small status-message" id="lcdStatus" role="status" aria-live="polite"></p>
+      </article>
     </section>
   </main>
   <footer class="page-footer">
     <div id="connectionStatus" class="status status--disconnected">Connecting…</div>
-    <span class="hint">Dashboard refreshes automatically every 2 seconds.</span>
+    <span class="hint">Dashboard refreshes every 2 seconds; LED and display updates sync across clients.</span>
   </footer>
   <script>
-    const maxLight = 4096;
+    let maxLight = 4096;
     const stateEndpoint = '{{ url_for("get_state") }}';
-    let pollTimer = null;
+    const ledEndpointTemplate = '{{ url_for("set_led_state", color="__color__") }}';
+    const displayEndpoint = '{{ url_for("send_display_message") }}';
     const pollInterval = 2000;
+    let pollTimer = null;
+
+    const ledButtons = Array.from(document.querySelectorAll('[data-led-color]'));
+    const ledStatusEl = document.getElementById('ledStatus');
+    const lcdForm = document.getElementById('lcdForm');
+    const lcdInput = document.getElementById('lcdText');
+    const lcdStatusEl = document.getElementById('lcdStatus');
+    const lcdLastMessageEl = document.getElementById('lcdLastMessage');
+    const lcdLastTimestampEl = document.getElementById('lcdLastTimestamp');
+
+    function buildLedEndpoint(color) {
+      return ledEndpointTemplate.replace('__color__', color);
+    }
+
+    function capitalize(word) {
+      if (!word) {
+        return '';
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    }
+
+    function updateStatus(el, message, isError = false) {
+      if (!el) {
+        return;
+      }
+      el.textContent = message;
+      el.classList.toggle('status-message--error', Boolean(isError));
+    }
+
+    function scheduleNext(delay = pollInterval) {
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+      }
+      pollTimer = setTimeout(fetchState, delay);
+    }
 
     function formatRelative(ts) {
       if (!ts) {
@@ -71,6 +163,9 @@
 
     function setConnectionStatus(connected, lastMessageTs) {
       const el = document.getElementById('connectionStatus');
+      if (!el) {
+        return;
+      }
       if (connected) {
         el.textContent = 'Connected to MQTT broker';
         el.classList.remove('status--disconnected');
@@ -89,9 +184,13 @@
       const valueEl = document.getElementById('lightValue');
       const progressEl = document.getElementById('lightProgress');
       const timestampEl = document.getElementById('lightTimestamp');
+      if (!valueEl || !progressEl || !timestampEl) {
+        return;
+      }
       if (!sensor) {
         valueEl.textContent = '--';
         progressEl.style.width = '0%';
+        progressEl.removeAttribute('data-value');
         timestampEl.textContent = 'Awaiting data…';
         return;
       }
@@ -105,6 +204,9 @@
 
     function renderEvents(events) {
       const list = document.getElementById('eventList');
+      if (!list) {
+        return;
+      }
       list.innerHTML = '';
       if (!events || events.length === 0) {
         const li = document.createElement('li');
@@ -128,6 +230,54 @@
       });
     }
 
+    function renderLeds(leds) {
+      if (!leds || ledButtons.length === 0) {
+        return;
+      }
+      ledButtons.forEach((btn) => {
+        const color = btn.dataset.ledColor;
+        const state = (leds[color] || 'OFF').toUpperCase();
+        btn.dataset.state = state;
+        btn.setAttribute('aria-pressed', state === 'ON');
+        btn.classList.toggle('led-toggle--on', state === 'ON');
+        const stateEl = btn.querySelector('.led-toggle__state');
+        if (stateEl) {
+          stateEl.textContent = state;
+        }
+      });
+      const active = Object.entries(leds)
+        .filter(([, value]) => (value || '').toUpperCase() === 'ON')
+        .map(([color]) => capitalize(color));
+      if (active.length === 0) {
+        updateStatus(ledStatusEl, 'All LEDs off.');
+      } else if (active.length === 1) {
+        updateStatus(ledStatusEl, `${active[0]} LED is ON.`);
+      } else {
+        const last = active[active.length - 1];
+        const rest = active.slice(0, -1);
+        const listText = rest.length ? `${rest.join(', ')} and ${last}` : last;
+        updateStatus(ledStatusEl, `${listText} LEDs are ON.`);
+      }
+    }
+
+    function renderDisplay(display) {
+      if (!lcdLastMessageEl || !lcdLastTimestampEl) {
+        return;
+      }
+      const text = display && display.text ? display.text : '';
+      if (text) {
+        lcdLastMessageEl.textContent = text;
+        if (display.timestamp) {
+          lcdLastTimestampEl.textContent = `Updated ${formatRelative(display.timestamp)}`;
+        } else {
+          lcdLastTimestampEl.textContent = 'Updated recently.';
+        }
+      } else {
+        lcdLastMessageEl.textContent = 'None yet.';
+        lcdLastTimestampEl.textContent = 'No message sent.';
+      }
+    }
+
     async function fetchState() {
       try {
         const response = await fetch(stateEndpoint, { cache: 'no-store' });
@@ -135,8 +285,13 @@
           throw new Error(`HTTP ${response.status}`);
         }
         const data = await response.json();
+        if (data.meta && typeof data.meta.light_max === 'number') {
+          maxLight = data.meta.light_max;
+        }
         renderSensor(data.sensor);
         renderEvents(data.events);
+        renderLeds(data.leds);
+        renderDisplay(data.display);
         setConnectionStatus(data.connection.connected, data.connection.last_message_at);
         scheduleNext();
       } catch (error) {
@@ -146,11 +301,78 @@
       }
     }
 
-    function scheduleNext(delay = pollInterval) {
-      if (pollTimer) {
-        clearTimeout(pollTimer);
-      }
-      pollTimer = setTimeout(fetchState, delay);
+    ledButtons.forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (btn.disabled) {
+          return;
+        }
+        const color = btn.dataset.ledColor;
+        const currentState = (btn.dataset.state || 'OFF').toUpperCase();
+        const nextState = currentState === 'ON' ? 'OFF' : 'ON';
+        updateStatus(ledStatusEl, `Sending ${nextState} command to ${capitalize(color)} LED…`);
+        btn.disabled = true;
+        try {
+          const response = await fetch(buildLedEndpoint(color), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ state: nextState }),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          renderLeds(data.leds);
+          updateStatus(ledStatusEl, `${capitalize(color)} LED switched ${nextState}.`);
+        } catch (error) {
+          console.error('Failed to update LED', error);
+          updateStatus(ledStatusEl, `Failed to update ${capitalize(color)} LED.`, true);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    if (lcdForm) {
+      lcdForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!lcdInput) {
+          return;
+        }
+        const text = lcdInput.value.trim();
+        if (!text) {
+          updateStatus(lcdStatusEl, 'Please enter a message before sending.', true);
+          return;
+        }
+        updateStatus(lcdStatusEl, 'Sending message to display…');
+        lcdInput.disabled = true;
+        const submitButton = lcdForm.querySelector('button[type="submit"]');
+        if (submitButton) {
+          submitButton.disabled = true;
+        }
+        try {
+          const response = await fetch(displayEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          renderDisplay(data.display);
+          updateStatus(lcdStatusEl, 'Message sent successfully.');
+        } catch (error) {
+          console.error('Failed to send display message', error);
+          updateStatus(lcdStatusEl, 'Failed to send message to display.', true);
+        } finally {
+          if (submitButton) {
+            submitButton.disabled = false;
+          }
+          lcdInput.disabled = false;
+          lcdInput.focus();
+          lcdInput.select();
+        }
+      });
     }
 
     document.addEventListener('visibilitychange', () => {
