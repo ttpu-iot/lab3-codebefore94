@@ -25,8 +25,8 @@ const int lightSensorPin = 33; // GPIO pin for light sensor
 const int buttonPin = 25;      // GPIO pin for button
 
 // WiFi credentials
-const char* ssid = "Wokwi-GUEST";
-const char* password = "";
+const char* ssid = "MaxPC";
+const char* password = "polito2025";
 
 // MQTT Broker settings
 const char* mqtt_broker = "mqtt.iotserver.uz";  // Free public MQTT broker
