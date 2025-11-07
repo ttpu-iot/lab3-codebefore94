@@ -11,8 +11,8 @@ const int blueLEDPin = 14;   // GPIO pin for Blue LED
 const int yellowLEDPin = 12; // GPIO pin for Yellow LED
 
 // WiFi credentials
-const char* ssid = "Wokwi-GUEST";
-const char* password = "";
+const char* ssid = "MaxPC";
+const char* password = "polito2025";
 
 // MQTT Broker settings
 const char* mqtt_broker = "mqtt.iotserver.uz";  // Free public MQTT broker
@@ -121,6 +121,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
   int chosenLED = -1;
 
   String topicStr = String(topic);
+
   if (topicStr == String(mqtt_topic_red)) {
     chosenLED = redLEDPin;
   } 
@@ -152,6 +153,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
     Serial.println(error.c_str());
     return;
   }
+
+  // String state_val = "";
+  // if (doc.containsKey("state") == true) {
+  //   state_val = doc["state"].as<String>();
+  // }
 
   const char* state_cstr = doc["state"].is<const char*>() ? doc["state"].as<const char*>() : nullptr;
   String state_val = state_cstr ? String(state_cstr) : "";

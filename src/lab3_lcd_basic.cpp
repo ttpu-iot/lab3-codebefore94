@@ -49,6 +49,12 @@ void setup() {
   }
   
   Serial.println("LCD initialized successfully!");
+
+  // set contrast if needed
+  lcd.setContrast(60); // Adjust contrast value as needed
+
+  // set brightness if needed
+  lcd.setBacklight(LOW); // Turn on backlight
   
   // Clear LCD and display initial message
   lcd.clear();
