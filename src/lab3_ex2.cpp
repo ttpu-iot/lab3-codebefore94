@@ -153,10 +153,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
     return;
   }
 
-  String state_val = "";
-  if (doc.containsKey("state")) {
-    state_val = doc["state"].as<String>();
-  }
+  const char* state_cstr = doc["state"].is<const char*>() ? doc["state"].as<const char*>() : nullptr;
+  String state_val = state_cstr ? String(state_cstr) : "";
 
   int ledState = -1;
 
